@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "web/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "api/*.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    { "src": "/api/products", "dest": "/api/products.py" },
+    { "src": "/api/suggested", "dest": "/api/suggested.py" },
+    { "src": "/api/score", "dest": "/api/score.py" },
+    { "src": "/api/search", "dest": "/api/search.py" },
+    { "src": "/products", "dest": "/api/products.py" },
+    { "src": "/suggested", "dest": "/api/suggested.py" },
+    { "src": "/score", "dest": "/api/score.py" },
+    { "src": "/search", "dest": "/api/search.py" },
+    { "src": "/style.css", "dest": "/web/style.css" },
+    { "src": "/(.*)", "dest": "/web/index.html" }
+  ]
+}

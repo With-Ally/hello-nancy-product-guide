@@ -67,7 +67,9 @@
   </div>
 
   <script>
-    const API = 'http://localhost:5000';
+    // Auto-detect: local dev server or Vercel deployment
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const API = isLocal ? 'http://localhost:5000' : '';
     const CARD_COLORS = ['card-pink', 'card-peach', 'card-lavender', 'card-mint', 'card-yellow', 'card-blue'];
 
     function getColor(i) { return CARD_COLORS[i % CARD_COLORS.length]; }
