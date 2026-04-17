@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hello Nancy — Product Guide</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="brand">Hello Nancy</div>
+    <div class="search-container">
+      <input type="text" id="searchInput" placeholder="Search suppliers for product ideas (e.g. 'beginner vibrator silicone')" />
+      <button class="search-btn" id="searchBtn" title="Search suppliers">
+        <svg viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </button>
+    </div>
+    <div class="nav-icons">
+      <button class="icon-btn" title="Notifications">&#128276;</button>
+      <div class="avatar">N</div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="left-column">
+
+      <!-- Existing Products -->
+      <section class="panel">
+        <h2>Existing Hello Nancy Products</h2>
+        <div class="product-grid" id="existingProducts"></div>
+      </section>
+
+      <!-- Supplier Search Results -->
+      <section class="panel" id="search-section" style="display:none;">
+        <h2 id="searchTitle">Supplier Search Results</h2>
+        <div class="product-grid" id="searchResults"></div>
+      </section>
+
+    </div>
+
+    <div class="right-column">
+      <!-- Why It Fits Panel -->
+      <div class="why-panel" id="whyPanel">
+        <h2>Why This Fits Hello Nancy</h2>
+        <ul id="whyList">
+          <li>Search for products on Alibaba to see brand-fit scores</li>
+        </ul>
+        <div id="saveContainer" style="display:none; margin-top:16px;">
+          <button id="saveBtn" class="save-btn">Save to Suggested Products</button>
+        </div>
+      </div>
+
+      <!-- Saved Products Panel -->
+      <div class="why-panel" id="savedPanel" style="margin-top:20px;">
+        <h2>Saved Suggestions</h2>
+        <ul id="savedList">
+          <li>No saved suggestions yet</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:5000';
+    const CARD_COLORS = ['card-pink', 'card-peach', 'card-lavender', 'card-mint', 'card-yellow', 'card-blue'];
+
+    function getColor(i) { return CARD_COLORS[i % CARD_COLORS.length]; }
+
+    function scoreColor(score) {
+      if (score >= 7) return '#4caf50';
+      if (score >= 4) return '#ff9800';
+      return '#f44336';
+    }
+
+    // --- Existing Products (with real images) ---
+    function createExistingCard(product, index) {
+      const card = document.createElement('div');
+      card.className = `product-card ${getColor(index)}`;
+      card.innerHTML = `
+        <div class="card-icon">
+          <img src="${product.image}" alt="${product.name}"
+               style="width:52px;height:52px;object-fit:cover;border-radius:8px;"
+               onerror="this.style.display='none';this.parentElement.textContent='🌸'">
+        </div>
+        <div class="card-info">
+          <h3>${product.playful_name || product.name}</h3>
+          <p>${product.vibe || product.type}</p>
+          ${product.price ? `<p style="font-weight:600;color:#333;margin-top:2px;">${product.price}</p>` : ''}
+        </div>
+      `;
+      return card;
+    }
+
+    async function loadProducts() {
+      try {
+        const res = await fetch(`${API}/products`);
+        const products = await res.json();
+        const grid = document.getElementById('existingProducts');
+        grid.innerHTML = '';
+        products.forEach((p, i) => grid.appendChild(createExistingCard(p, i)));
+      } catch {
+        document.getElementById('existingProducts').innerHTML =
+          '<div class="empty-state">Could not load products. Is the server running?</div>';
+      }
+    }
+
+    // --- Supplier Search Results ---
+    let selectedProduct = null;
+
+    function createSupplierCard(product, index) {
+      const card = document.createElement('div');
+      card.className = `product-card ${getColor(index)}`;
+      card.style.cursor = 'pointer';
+
+      const imgHtml = product.image
+        ? `<img src="${product.image}" alt="" style="width:52px;height:52px;object-fit:cover;border-radius:8px;"
+               onerror="this.style.display='none';this.parentElement.textContent='📦'">`
+        : '📦';
+
+      const linkBtn = product.url
+        ? `<a href="${product.url}" target="_blank" rel="noopener" title="View on ${product.source || 'supplier'}"
+              style="font-size:16px;text-decoration:none;flex-shrink:0;margin-left:4px;"
+              onclick="event.stopPropagation();">&#x1F517;</a>`
+        : '';
+
+      card.innerHTML = `
+        <div class="card-icon">${imgHtml}</div>
+        <div class="card-info">
+          <h3>${truncate(product.name, 45)}</h3>
+          <p>${product.source || 'Supplier'} ${product.price ? '· ' + product.price : ''}</p>
+          ${product.min_order ? `<p style="font-size:10px;color:#999;">MOQ: ${product.min_order}</p>` : ''}
+        </div>
+        ${linkBtn}
+        <div class="card-score" style="background:${scoreColor(product.score)};color:#fff;">
+          ${product.score}/10
+        </div>
+      `;
+
+      card.addEventListener('click', () => showProductDetail(product));
+      return card;
+    }
+
+    function truncate(str, len) {
+      return str && str.length > len ? str.substring(0, len) + '...' : str || '';
+    }
+
+    function showProductDetail(product) {
+      selectedProduct = product;
+      const whyList = document.getElementById('whyList');
+      const panel = document.getElementById('whyPanel');
+
+      const sc = product.score || 0;
+      const color = sc >= 7 ? '#4caf50' : sc >= 4 ? '#ff9800' : '#f44336';
+      const verdict = sc >= 7 ? 'Great fit for Hello Nancy!' : sc >= 4 ? 'Partial fit — could work with adjustments' : 'Not a good fit for Hello Nancy';
+
+      let items = '';
+
+      // --- Score badge ---
+      items += `<li style="text-align:center;padding:12px 0;">
+        <div style="display:inline-block;background:${color};color:#fff;font-size:28px;font-weight:700;
+                    width:64px;height:64px;line-height:64px;border-radius:50%;margin-bottom:6px;">${sc}</div>
+        <div style="font-size:11px;color:#888;">out of 10</div>
+        <div style="font-size:13px;font-weight:600;color:${color};margin-top:4px;">${verdict}</div>
+      </li>`;
+
+      // --- Scoring breakdown ---
+      items += `<li style="font-weight:600;color:#4a148c;margin-top:4px;border-top:1px solid rgba(0,0,0,0.08);padding-top:10px;">
+        Scoring Breakdown</li>`;
+
+      if (product.reasons && product.reasons.length) {
+        product.reasons.forEach(r => {
+          const isWarning = r.startsWith('WARNING');
+          const isPositive = r.startsWith('Core') || r.startsWith('Has ') || r.startsWith('Match') || r.startsWith('Strong') || r.startsWith('Some ') || r.startsWith('Complementary');
+          const icon = isWarning ? '&#10007;' : isPositive ? '&#10003;' : '&#8226;';
+          const iconColor = isWarning ? '#f44336' : isPositive ? '#4caf50' : '#999';
+          items += `<li style="padding-left:22px;"><span style="position:absolute;left:0;color:${iconColor};font-weight:700;">${icon}</span> ${r}</li>`;
+        });
+      } else {
+        items += '<li>No brand-fit signals detected in this product description</li>';
+      }
+
+      if (product.warning) {
+        items += `<li><span class="warning-badge">${product.warning}</span></li>`;
+      }
+
+      // Explain what would improve the score
+      if (sc < 7) {
+        let tips = [];
+        const idea = (product.name + ' ' + (product.description || '')).toLowerCase();
+        if (!idea.match(/vibrator|massager|clitoral|wand|bullet|suction/))
+          tips.push('Product type doesn\'t match Hello Nancy\'s core catalog');
+        if (!idea.match(/rechargeable|usb|waterproof|silicone|quiet/))
+          tips.push('Missing key features (rechargeable, silicone, waterproof, etc.)');
+        if (!idea.match(/mini|compact|portable|small|cute|pastel|pink/))
+          tips.push('Doesn\'t match Hello Nancy\'s playful, cute aesthetic');
+        if (tips.length) {
+          items += `<li style="font-weight:600;color:#e65100;margin-top:8px;border-top:1px solid rgba(0,0,0,0.08);padding-top:10px;">
+            Why it scored low</li>`;
+          tips.forEach(t => {
+            items += `<li style="padding-left:22px;"><span style="position:absolute;left:0;color:#e65100;">&#9679;</span> ${t}</li>`;
+          });
+        }
+      }
+
+      // --- Supplier Details ---
+      items += `<li style="font-weight:600;color:#4a148c;margin-top:12px;border-top:1px solid rgba(0,0,0,0.08);padding-top:10px;">
+        Supplier Details</li>`;
+
+      if (product.supplier) {
+        const supplierLink = product.supplier_url || product.url || '#';
+        items += `<li><strong>Supplier:</strong> <a href="${supplierLink}" target="_blank" rel="noopener" style="color:#7b1fa2;text-decoration:underline;">${product.supplier}</a></li>`;
+      }
+
+      items += `<li><strong>Source:</strong> ${product.source || 'Unknown'}</li>`;
+      if (product.price) items += `<li><strong>Unit Price:</strong> ${product.price}</li>`;
+      if (product.min_order) items += `<li><strong>Min Order:</strong> ${product.min_order}</li>`;
+      if (product.sample_price) items += `<li><strong>Sample Price:</strong> ${product.sample_price}</li>`;
+      if (product.material) items += `<li><strong>Material:</strong> ${product.material}</li>`;
+
+      if (product.url) {
+        items += `<li style="margin-top:8px;"><a href="${product.url}" target="_blank" rel="noopener" style="color:#7b1fa2;text-decoration:underline;font-size:12px;">View on ${product.source || 'supplier site'} &rarr;</a></li>`;
+      }
+
+      if (product.image) {
+        items += `<li style="margin-top:10px;text-align:center;">
+          <img src="${product.image}" alt="" style="max-width:100%;max-height:180px;border-radius:10px;object-fit:contain;"
+               onerror="this.style.display='none'">
+        </li>`;
+      }
+
+      whyList.innerHTML = items;
+      panel.querySelector('h2').textContent = truncate(product.name, 35);
+
+      // Show/hide save button
+      const saveContainer = document.getElementById('saveContainer');
+      if (product.score >= 7) {
+        saveContainer.style.display = 'block';
+      } else {
+        saveContainer.style.display = 'none';
+      }
+    }
+
+    // --- Search Suppliers ---
+    async function searchSuppliers(query) {
+      const section = document.getElementById('search-section');
+      const grid = document.getElementById('searchResults');
+      const title = document.getElementById('searchTitle');
+
+      section.style.display = 'block';
+      title.textContent = `Searching suppliers for "${query}"...`;
+      grid.innerHTML = '<div class="loading"><div class="spinner"></div><br>Searching suppliers and scoring brand fit...</div>';
+
+      try {
+        const res = await fetch(`${API}/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query, max_results: 12 })
+        });
+        const results = await res.json();
+
+        grid.innerHTML = '';
+
+        if (results.length === 0) {
+          grid.innerHTML = '<div class="empty-state">No results found. Try different search terms.</div>';
+          title.textContent = `No results for "${query}"`;
+          return;
+        }
+
+        title.textContent = `Supplier Results for "${query}" (${results.length} found, sorted by brand fit)`;
+        results.forEach((p, i) => grid.appendChild(createSupplierCard(p, i)));
+
+      } catch (err) {
+        grid.innerHTML = '<div class="empty-state">Search failed. Is the server running on localhost:5000?</div>';
+      }
+    }
+
+    // --- Save Product ---
+    async function saveProduct() {
+      if (!selectedProduct) return;
+      try {
+        await fetch(`${API}/save`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product: selectedProduct })
+        });
+        document.getElementById('saveBtn').textContent = 'Saved!';
+        document.getElementById('saveBtn').disabled = true;
+        setTimeout(() => {
+          document.getElementById('saveBtn').textContent = 'Save to Suggested Products';
+          document.getElementById('saveBtn').disabled = false;
+        }, 2000);
+        loadSaved();
+      } catch {
+        alert('Failed to save. Is the server running?');
+      }
+    }
+
+    // --- Load Saved Suggestions ---
+    let savedProducts = [];
+
+    async function loadSaved() {
+      try {
+        const res = await fetch(`${API}/suggested`);
+        savedProducts = await res.json();
+        const list = document.getElementById('savedList');
+        if (savedProducts.length === 0) {
+          list.innerHTML = '<li>No saved suggestions yet</li>';
+          return;
+        }
+        list.innerHTML = savedProducts.map((s, i) => {
+          const name = truncate(s.name || s.idea || 'Product', 30);
+          const sc = s.score || 0;
+          const color = scoreColor(sc);
+          const url = s.url || s.supplier_url || '';
+          const linkHtml = url
+            ? `<a href="${url}" target="_blank" rel="noopener" title="View listing"
+                  style="font-size:14px;text-decoration:none;margin-right:6px;flex-shrink:0;"
+                  onclick="event.stopPropagation();">&#x1F517;</a>`
+            : `<span style="font-size:10px;color:#ccc;margin-right:6px;flex-shrink:0;" title="No supplier link">--</span>`;
+          return `<li class="saved-item" data-index="${i}" style="cursor:pointer;transition:background 0.15s;border-radius:8px;padding:8px 8px 8px 18px;margin:4px 0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="flex:1;min-width:0;">
+                <strong style="font-size:13px;">${name}</strong>
+                <div style="font-size:11px;color:#888;margin-top:2px;">${s.source || 'Scored idea'} ${s.price ? '· ' + s.price : ''}</div>
+              </div>
+              ${linkHtml}
+              <span style="background:${color};color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;flex-shrink:0;">${sc}/10</span>
+            </div>
+          </li>`;
+        }).join('');
+
+        // Add click handlers
+        list.querySelectorAll('.saved-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const idx = parseInt(item.dataset.index);
+            if (savedProducts[idx]) showProductDetail(savedProducts[idx]);
+          });
+          item.addEventListener('mouseenter', () => item.style.background = 'rgba(206,147,216,0.15)');
+          item.addEventListener('mouseleave', () => item.style.background = 'transparent');
+        });
+      } catch {}
+    }
+
+    // --- Event Listeners ---
+    document.getElementById('searchBtn').addEventListener('click', () => {
+      const val = document.getElementById('searchInput').value.trim();
+      if (val) searchSuppliers(val);
+    });
+
+    document.getElementById('searchInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const val = e.target.value.trim();
+        if (val) searchSuppliers(val);
+      }
+    });
+
+    document.getElementById('saveBtn').addEventListener('click', saveProduct);
+
+    // --- Init ---
+    loadProducts();
+    loadSaved();
+  </script>
+
+</body>
+</html>
