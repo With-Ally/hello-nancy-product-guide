@@ -116,15 +116,19 @@ def search_and_score(query, max_results=12):
     if url_dropped:
         print(f"  Dropped {url_dropped} non-product URLs")
 
-    # Score each result against brand guidelines using AI
-    scored = []
-    for product in live:
+    # Score each result against brand guidelines using AI (in parallel)
+    def score_one(product):
         text = f"{product['name']} {product.get('description', '')}"
         result = ai_score_product(text)
         product["score"] = result["score"]
         product["reasons"] = result["reasons"]
         product["warning"] = result["warning"]
-        scored.append(product)
+        return product
+
+    scored = []
+    if live:
+        with ThreadPoolExecutor(max_workers=min(8, len(live))) as pool:
+            scored = list(pool.map(score_one, live))
 
     # Sort by score descending, then by source
     scored.sort(key=lambda x: (-x["score"], x["source"]))
